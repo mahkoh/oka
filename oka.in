@@ -1,0 +1,4 @@
+#!/bin/bash
+
+export OKA_PLUGIN_DIR="@OKA_DIR@/plugins"
+exec "@OKA_DIR@/oka" "$@"
