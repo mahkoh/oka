@@ -217,7 +217,7 @@ static void player_start_track_change_timer(void)
 static void player_sink_stop(void)
 {
     loop_defer_set(player_provide_input_defer, false);
-    player_sink->stop(player_sink);
+    player_sink->set_format(player_sink, NULL);
 }
 
 static void player_sink_disable(void)
@@ -236,7 +236,7 @@ static void player_sink_load(struct sink *sink)
         player_sink->enable(player_sink);
         auto last = player_last_input();
         if (last)
-            player_sink->start(player_sink, &last->stream->fmt);
+            player_sink->set_format(player_sink, &last->stream->fmt);
     }
 }
 
@@ -266,7 +266,7 @@ static void player_input_load(struct decoder_stream *s, struct main_track_cookie
         if (was_playing && flush)
             player_sink->flush(player_sink, &s->fmt);
         else if (is_playing)
-            player_sink->start(player_sink, &s->fmt);
+            player_sink->set_format(player_sink, &s->fmt);
         else if (was_playing)
             player_sink_stop();
     }

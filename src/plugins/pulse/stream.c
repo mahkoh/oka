@@ -273,10 +273,6 @@ static void pulse_stream_on_info(pa_context *c, const pa_sink_input_info *i, int
         return;
     }
 
-    struct pulse_stream_priv *s = userdata;
-
-    BUG_ON(s->pub.state != PULSE_STREAM_READY);
-
     pa_channel_map map;
     pa_channel_map_init_auto(&map, 2, PA_CHANNEL_MAP_DEFAULT);
 
@@ -284,6 +280,8 @@ static void pulse_stream_on_info(pa_context *c, const pa_sink_input_info *i, int
 
     u32 l = pa_cvolume_get_position(&vol, &map, PA_CHANNEL_POSITION_FRONT_LEFT);
     u32 r = pa_cvolume_get_position(&vol, &map, PA_CHANNEL_POSITION_FRONT_RIGHT);
+
+    struct pulse_stream_priv *s = userdata;
 
     s->pub.info.stopped = false,
     s->pub.info.paused = i->corked,

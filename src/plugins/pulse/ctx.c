@@ -173,7 +173,7 @@ static struct pulse_stream *pulse_ctx_playing_stream(struct pulse_ctx_priv *c)
     return c->streams.len > 0 ? c->streams.ptr[0] : NULL;
 }
 
-void pulse_ctx_set_pause(struct pulse_ctx *cc, bool pause)
+int pulse_ctx_set_pause(struct pulse_ctx *cc, bool pause)
 {
     auto c = pulse_ctx_to_priv(cc);
 
@@ -182,9 +182,11 @@ void pulse_ctx_set_pause(struct pulse_ctx *cc, bool pause)
     if (s) {
         pulse_stream_set_pause(s, pause);
     }
+
+    return 0;
 }
 
-void pulse_ctx_set_mute(struct pulse_ctx *cc, bool mute)
+int pulse_ctx_set_mute(struct pulse_ctx *cc, bool mute)
 {
     auto c = pulse_ctx_to_priv(cc);
 
@@ -193,9 +195,11 @@ void pulse_ctx_set_mute(struct pulse_ctx *cc, bool mute)
     if (s) {
         pulse_stream_set_mute(s, mute);
     }
+
+    return 0;
 }
 
-void pulse_ctx_flush(struct pulse_ctx *cc, const struct audio_format *f)
+int pulse_ctx_flush(struct pulse_ctx *cc, const struct audio_format *f)
 {
     auto c = pulse_ctx_to_priv(cc);
 
@@ -211,7 +215,9 @@ void pulse_ctx_flush(struct pulse_ctx *cc, const struct audio_format *f)
         if (s) {
             if (f && audio_formats_eq(&s->fmt, f)) {
                 pulse_stream_set_drain(s, false);
-                pulse_stream_flush(s);
+                if (s->state == PULSE_STREAM_READY) {
+                    pulse_stream_flush(s);
+                }
                 pulse_ctx_set_input(c, s);
             } else {
                 pulse_stream_free(s);
@@ -221,6 +227,7 @@ void pulse_ctx_flush(struct pulse_ctx *cc, const struct audio_format *f)
     }
 
     pulse_ctx_set_input_format(cc, f);
+    return 0;
 }
 
 u32 pulse_ctx_latency(struct pulse_ctx *cc)
@@ -292,12 +299,12 @@ static void pulse_ctx_drain(struct pulse_ctx_priv *c)
     }
 }
 
-void pulse_ctx_disable(struct pulse_ctx *cc)
+int pulse_ctx_disable(struct pulse_ctx *cc)
 {
     auto c = pulse_ctx_to_priv(cc);
 
     if (c->state == PULSE_CTX_DISABLED) {
-        return;
+        return 0;
     }
 
     pa_context_set_subscribe_callback(cc->ctx, NULL, NULL);
@@ -311,9 +318,10 @@ void pulse_ctx_disable(struct pulse_ctx *cc)
     pa_context_unref(cc->ctx);
 
     pulse_ctx_init(c, c->pub.diag);
+    return 0;
 }
 
-void pulse_ctx_set_input_format(struct pulse_ctx *cc, const struct audio_format *f)
+int pulse_ctx_set_input_format(struct pulse_ctx *cc, const struct audio_format *f)
 {
     auto c = pulse_ctx_to_priv(cc);
 
@@ -324,7 +332,7 @@ void pulse_ctx_set_input_format(struct pulse_ctx *cc, const struct audio_format 
         }
     } else if (c->state == PULSE_CTX_READY) {
         if (c->have_fmt && f && audio_formats_eq(&c->fmt, f)) {
-            return;
+            return 0;
         }
 
         pulse_ctx_drain(c);
@@ -337,6 +345,8 @@ void pulse_ctx_set_input_format(struct pulse_ctx *cc, const struct audio_format 
     } else {
         BUG("invalid state");
     }
+
+    return 0;
 }
 
 static int pulse_pa_error(int rc)

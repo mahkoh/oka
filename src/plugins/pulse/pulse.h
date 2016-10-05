@@ -41,11 +41,11 @@ extern struct sink pulse_sink_template;
 
 struct pulse_ctx *pulse_ctx_from_sink(struct sink *);
 int pulse_ctx_enable(struct pulse_ctx *c);
-void pulse_ctx_disable(struct pulse_ctx *cc);
-void pulse_ctx_set_input_format(struct pulse_ctx *cc, const struct audio_format *f);
-void pulse_ctx_flush(struct pulse_ctx *cc, const struct audio_format *f);
-void pulse_ctx_set_pause(struct pulse_ctx *c, bool pause);
-void pulse_ctx_set_mute(struct pulse_ctx *c, bool mute);
+int pulse_ctx_disable(struct pulse_ctx *cc);
+int pulse_ctx_set_input_format(struct pulse_ctx *cc, const struct audio_format *f);
+int pulse_ctx_flush(struct pulse_ctx *cc, const struct audio_format *f);
+int pulse_ctx_set_pause(struct pulse_ctx *c, bool pause);
+int pulse_ctx_set_mute(struct pulse_ctx *c, bool mute);
 int pulse_ctx_provide_buf(struct pulse_ctx *c, u8 **buf, size_t *len);
 int pulse_ctx_commit_buf(struct pulse_ctx *c, u8 *buf, size_t len);
 u32 pulse_ctx_latency(struct pulse_ctx *c);

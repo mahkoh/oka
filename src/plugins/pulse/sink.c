@@ -9,23 +9,32 @@ static int pulse_sink_enable(struct sink *sink)
     return pulse_ctx_enable(pulse_ctx_from_sink(sink));
 }
 
-static int pulse_sink_start(struct sink *sink, const struct audio_format *f)
-{
-    pulse_ctx_set_input_format(pulse_ctx_from_sink(sink), f);
-    return 0;
-}
-
-static int pulse_sink_stop(struct sink *sink)
-{
-    pulse_ctx_set_input_format(pulse_ctx_from_sink(sink), NULL);
-    return 0;
-}
-
 static int pulse_sink_disable(struct sink *sink)
 {
-    pulse_ctx_disable(pulse_ctx_from_sink(sink));
-    return 0;
+    return pulse_ctx_disable(pulse_ctx_from_sink(sink));
 }
+
+static int pulse_sink_free(struct sink *sink)
+{
+    return pulse_ctx_free(pulse_ctx_from_sink(sink));
+}
+
+
+static int pulse_sink_set_format(struct sink *sink, const struct audio_format *f)
+{
+    return pulse_ctx_set_input_format(pulse_ctx_from_sink(sink), f);
+}
+
+static int pulse_sink_pause(struct sink *sink, bool pause)
+{
+    return pulse_ctx_set_pause(pulse_ctx_from_sink(sink), pause);
+}
+
+static int pulse_sink_mute(struct sink *sink, bool mute)
+{
+    return pulse_ctx_set_mute(pulse_ctx_from_sink(sink), mute);
+}
+
 
 static int pulse_sink_provide_buf(struct sink *sink, u8 **buf, size_t *len)
 {
@@ -37,32 +46,14 @@ static int pulse_sink_commit_buf(struct sink *sink, u8 *buf, size_t len)
     return pulse_ctx_commit_buf(pulse_ctx_from_sink(sink), buf, len);
 }
 
-static int pulse_sink_pause(struct sink *sink, bool pause)
-{
-    pulse_ctx_set_pause(pulse_ctx_from_sink(sink), pause);
-    return 0;
-}
-
-static int pulse_sink_mute(struct sink *sink, bool mute)
-{
-    pulse_ctx_set_mute(pulse_ctx_from_sink(sink), mute);
-    return 0;
-}
-
 static int pulse_sink_flush(struct sink *sink, const struct audio_format *f)
 {
-    pulse_ctx_flush(pulse_ctx_from_sink(sink), f);
-    return 0;
+    return pulse_ctx_flush(pulse_ctx_from_sink(sink), f);
 }
 
 static u32 pulse_sink_latency(struct sink *sink)
 {
     return pulse_ctx_latency(pulse_ctx_from_sink(sink));
-}
-
-static int pulse_sink_free(struct sink *sink)
-{
-    return pulse_ctx_free(pulse_ctx_from_sink(sink));
 }
 
 struct sink pulse_sink_template = {
@@ -85,8 +76,7 @@ struct sink pulse_sink_template = {
     .disable = pulse_sink_disable,
     .free = pulse_sink_free,
 
-    .start = pulse_sink_start,
-    .stop = pulse_sink_stop,
+    .set_format = pulse_sink_set_format,
     .pause = pulse_sink_pause,
     .mute = pulse_sink_mute,
 

@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <sys/timerfd.h>
 #include <sys/epoll.h>
 
@@ -13,6 +14,8 @@
 #include "utils/vec.h"
 
 UTILS_VECTOR(loop_defer, struct loop_defer *)
+UTILS_VECTOR(loop_watch, struct loop_watch *)
+UTILS_VECTOR(loop_timer, struct loop_timer *)
 
 struct loop_watch {
     struct loop *loop;
@@ -40,6 +43,9 @@ struct loop {
     struct delegator *delegator;
     struct loop_defer_vector deferred;
 
+    struct loop_watch_vector freed_watches;
+    struct loop_timer_vector freed_timers;
+
     bool force_iteration;
     bool running;
     int ret;
@@ -51,8 +57,10 @@ void loop_free(struct loop *loop)
 {
     loop_watch_free(loop->delegator_watch);
 
-    for (size_t i = 0; i < loop->deferred.len; i++)
-        free(loop->deferred.ptr[i]);
+    loop_collect_garbage(loop);
+
+    free(loop->freed_watches.ptr);
+    free(loop->freed_timers.ptr);
     free(loop->deferred.ptr);
 
     delegator_free(loop->delegator);
@@ -90,7 +98,9 @@ struct loop *loop_new(void)
 static void loop_handle_fd(struct epoll_event *event)
 {
     struct loop_watch *w = event->data.ptr;
-    w->cb(w, w->opaque, w->fd, event->events);
+    if (w->fd != -1) {
+        w->cb(w, w->opaque, w->fd, event->events);
+    }
 }
 
 static void loop_run_deferred(struct loop *loop)
@@ -100,6 +110,19 @@ static void loop_run_deferred(struct loop *loop)
         if (d->enabled)
             d->cb(d, d->opaque);
     }
+}
+
+static void loop_collect_garbage(struct loop *loop)
+{
+    for (size_t i = 0; i < loop->freed_watches.len; i++) {
+        free(loop->freed_watches.ptr[i]);
+    }
+    loop->freed_watches.len = 0;
+
+    for (size_t i = 0; i < loop->freed_timers.len; i++) {
+        free(loop->freed_timers.ptr[i]);
+    }
+    loop->freed_timers.len = 0;
 
     for (size_t i = 0; i < loop->deferred.len; i++) {
         auto d = loop->deferred.ptr[i];
@@ -115,18 +138,20 @@ int loop_run(struct loop *loop)
 {
     while (loop->running) {
         loop_run_deferred(loop);
+        loop_collect_garbage(loop);
 
         int timeout = loop->force_iteration ? 0 : -1;
         loop->force_iteration = false;
 
         struct epoll_event events[10];
-        ssize_t num = epoll_wait(loop->epfd, events, 10, timeout);
+        ssize_t num = epoll_wait(loop->epfd, events, N_ELEMENTS(events), timeout);
         if (num < 0) {
             BUG_ON(num != -EINTR);
             continue;
         }
-        for (size_t i = 0; i < (size_t)num; i++)
+        for (size_t i = 0; i < (size_t)num; i++) {
             loop_handle_fd(&events[i]);
+        }
     }
 
     return loop->ret;
@@ -173,20 +198,16 @@ void loop_watch_set(struct loop_watch *w, int fd, u32 events)
 {
     struct epoll_event e = { .data.ptr = w, .events = events };
 
-    int ret = 0;
-
     if (w->fd != fd) {
         loop_watch_disable(w);
         if (fd != -1) {
-            ret = epoll_ctl(w->loop->epfd, EPOLL_CTL_ADD, fd, &e);
+            BUG_ON(epoll_ctl(w->loop->epfd, EPOLL_CTL_ADD, fd, &e));
         }
     } else if (fd != -1) {
-        ret = epoll_ctl(w->loop->epfd, EPOLL_CTL_MOD, fd, &e);
+        BUG_ON(epoll_ctl(w->loop->epfd, EPOLL_CTL_MOD, fd, &e));
     }
 
     w->fd = fd;
-
-    BUG_ON(ret == -1);
 }
 
 void loop_watch_disable(struct loop_watch *w)
@@ -200,7 +221,7 @@ void loop_watch_disable(struct loop_watch *w)
 void loop_watch_free(struct loop_watch *w)
 {
     loop_watch_disable(w);
-    free(w);
+    loop_watch_vector_push(&w->loop->freed_watches, w);
 }
 
 struct loop_defer *loop_defer_new(struct loop *loop, loop_defer_cb cb, void *opaque)
@@ -225,14 +246,17 @@ void loop_defer_free(struct loop_defer *defer)
     defer->freed = true;
 }
 
-static void loop_handle_timer(struct loop_watch *w, void *opaque, int fd, u32 event)
+static void loop_timer_handle(struct loop_watch *w, void *opaque, int fd, u32 event)
 {
     (void)event;
 
     auto timer = container_of(w, struct loop_timer, watch);
 
     u64 exp;
-    BUG_ON(read(fd, &exp, sizeof(exp)) == -1);
+    if (read(fd, &exp, sizeof(exp)) == -1) {
+        BUG_ON(errno != EAGAIN);
+    }
+
     for (size_t i = 0; i < exp; i++) {
         timer->cb(timer, opaque);
     }
@@ -246,7 +270,7 @@ struct loop_timer *loop_timer_new(struct loop *loop, loop_timer_cb cb, int clock
 
     auto t = xnew0(struct loop_timer);
 
-    loop_watch_init(&t->watch, loop, loop_handle_timer, opaque);
+    loop_watch_init(&t->watch, loop, loop_timer_handle, opaque);
     t->cb = cb;
 
     loop_watch_set(&t->watch, fd, EPOLLIN);
@@ -268,7 +292,8 @@ void loop_timer_disable(struct loop_timer *timer)
 void loop_timer_free(struct loop_timer *timer)
 {
     close(timer->watch.fd);
-    free(timer);
+    timer->watch.fd = -1;
+    loop_timer_vector_push(&timer->watch.loop->freed_timers, timer);
 }
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

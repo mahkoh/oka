@@ -14,9 +14,7 @@ struct sink {
     int (*disable)(struct sink *);
     int (*free)(struct sink *);
 
-    int (*start)(struct sink *, const struct audio_format *);
     int (*set_format)(struct sink *, const struct audio_format *);
-    int (*stop)(struct sink *);
     int (*pause)(struct sink *, bool);
     int (*mute)(struct sink *, bool);
 
