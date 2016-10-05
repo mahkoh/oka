@@ -16,7 +16,6 @@
 #include "sink.h"
 #include "decoder.h"
 #include "main.h"
-#include "timer.h"
 
 struct player_input {
     struct list node;
@@ -336,11 +335,12 @@ static void *player_run(void *opaque)
 
 void player_init(void)
 {
-    player_loop = loop_new(timer_api());
+    player_loop = loop_new();
     player_provide_input_defer = loop_defer_new(player_loop, player_provide_input, NULL);
     loop_defer_set(player_provide_input_defer, false);
-    player_pos_timer = loop_timer_new(player_loop, player_pos_tick, NULL);
-    player_track_change_timer = loop_timer_new(player_loop, player_track_change_tick, NULL);
+    player_pos_timer = loop_timer_new(player_loop, player_pos_tick, CLOCK_REALTIME, NULL);
+    player_track_change_timer = loop_timer_new(player_loop, player_track_change_tick,
+            CLOCK_REALTIME, NULL);
     list_init(&player_inputs);
     auto_restore sigs = signals_block_all();
     thread_create(&player_thread, NULL, player_run, NULL);

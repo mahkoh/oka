@@ -117,10 +117,11 @@ struct slice {
 
 char *utils_strerr(int no);
 void utils_freep(void *data);
-void utils_signal_pipe(int pipe);
-void utils_clear_pipe(int pipe);
-void utils_init_pipe(int *pipe_out, int *pipe_in);
 u64 utils_get_mono_time_ms(void);
+
+int utils_eventfd(void);
+void utils_signal_eventfd(int fd);
+void utils_clear_eventfd(int fd);
 
 #endif
 

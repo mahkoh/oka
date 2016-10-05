@@ -1,10 +1,11 @@
 #include <pthread.h>
-#include <poll.h>
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
 #include <inttypes.h>
 #include <sys/ioctl.h>
+#include <sys/epoll.h>
+#include <sys/signalfd.h>
 
 #include "utils/utils.h"
 #include "utils/signals.h"
@@ -17,7 +18,6 @@
 #include "worker.h"
 #include "globals.h"
 #include "term.h"
-#include "timer.h"
 #include "plugins.h"
 #include "player.h"
 #include "decoder.h"
@@ -25,8 +25,7 @@
 struct worker *worker;
 struct diag *main_diag;
 
-static int main_winch_in;
-static int main_winch_out;
+static int main_winch_fd;
 static struct loop *main_loop;
 static struct loop_watch *main_stdin_watch;
 static struct loop_watch *main_winch_watch;
@@ -118,14 +117,15 @@ static void main_worker_exit(void)
     worker_free(worker);
 }
 
-static void main_handle_winch(struct loop_watch *w_, void *opaque, int fd, short events)
+static void main_handle_winch(struct loop_watch *w_, void *opaque, int fd, u32 events)
 {
     (void)w_;
     (void)fd;
     (void)opaque;
     (void)events;
 
-    utils_clear_pipe(main_winch_out);
+    struct signalfd_siginfo si;
+    BUG_ON(read(main_winch_fd, &si, sizeof(si)) == -1);
 
     struct winsize w = { 0 };
     ioctl(0, TIOCGWINSZ, &w);
@@ -134,45 +134,37 @@ static void main_handle_winch(struct loop_watch *w_, void *opaque, int fd, short
     term_flush();
 }
 
-static void main_winch_sig_handler(int sig)
-{
-    (void)sig;
-
-    utils_signal_pipe(main_winch_in);
-}
-
 static void main_winch_init(void)
 {
-    utils_init_pipe(&main_winch_out, &main_winch_in);
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGWINCH);
+    thread_sigmask(SIG_BLOCK, &set, NULL);
+
+    main_winch_fd = signalfd(-1, &set, SFD_NONBLOCK | SFD_CLOEXEC);
+    BUG_ON(main_winch_fd == -1);
 
     main_winch_watch = loop_watch_new(main_loop, main_handle_winch, NULL);
-    loop_watch_set(main_winch_watch, main_winch_out, POLLIN);
-
-    struct sigaction act;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    act.sa_handler = main_winch_sig_handler;
-    sigaction(SIGWINCH, &act, NULL);
+    loop_watch_set(main_winch_watch, main_winch_fd, EPOLLIN);
 }
 
 static void main_winch_exit(void)
 {
     loop_watch_free(main_winch_watch);
-    close(main_winch_out);
-    close(main_winch_in);
+    close(main_winch_fd);
 }
 
 static void main_signals_init(void)
 {
     sigset_t set;
     sigemptyset(&set);
-    sigaddset(&set, TIMER_SIGNAL);
+    // nothing
     thread_sigmask(SIG_BLOCK, &set, NULL);
 }
 
 static void main_loop_init(void)
 {
-    main_loop = loop_new(timer_api());
+    main_loop = loop_new();
 }
 
 static void main_loop_exit(void)
@@ -180,7 +172,7 @@ static void main_loop_exit(void)
     loop_free(main_loop);
 }
 
-static void main_handle_stdin(struct loop_watch *w, void *opaque, int fd, short events)
+static void main_handle_stdin(struct loop_watch *w, void *opaque, int fd, u32 events)
 {
     (void)w;
     (void)fd;
@@ -227,7 +219,7 @@ static void main_handle_stdin(struct loop_watch *w, void *opaque, int fd, short 
 static void main_stdin_init(void)
 {
     main_stdin_watch = loop_watch_new(main_loop, main_handle_stdin, NULL);
-    loop_watch_set(main_stdin_watch, 0, POLLIN);
+    loop_watch_set(main_stdin_watch, 0, EPOLLIN);
 }
 
 static void main_stdin_exit(void)
@@ -244,7 +236,6 @@ static void main_init(void)
     main_winch_init();
     main_worker_init();
 
-    timer_init();
     term_init();
     player_init();
     plugins_init();
@@ -255,7 +246,6 @@ static void main_exit(void)
     player_exit();
     plugins_exit();
     term_exit();
-    timer_exit();
 
     main_worker_exit();
     main_winch_exit();

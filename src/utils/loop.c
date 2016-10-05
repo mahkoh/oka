@@ -1,6 +1,8 @@
 #include <stdbool.h>
-#include <poll.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/timerfd.h>
+#include <sys/epoll.h>
 
 #include "utils/utils.h"
 #include "utils/loop.h"
@@ -8,8 +10,6 @@
 #include "utils/channel.h"
 #include "utils/xmalloc.h"
 #include "utils/debug.h"
-#include "utils/fdev.h"
-#include "utils/timer.h"
 #include "utils/vec.h"
 
 UTILS_VECTOR(loop_defer, struct loop_defer *)
@@ -30,30 +30,25 @@ struct loop_defer {
 };
 
 struct loop_timer {
-    struct loop *loop;
+    struct loop_watch watch;
     loop_timer_cb cb;
-    void *opaque;
-    struct timer *timer;
 };
 
 struct loop {
-    struct fdev *fds;
-    struct channel *timer;
+    int epfd;
+
     struct delegator *delegator;
     struct loop_defer_vector deferred;
-    const struct timer_api *timer_api;
 
     bool force_iteration;
     bool running;
     int ret;
 
-    struct loop_watch *timer_watch;
     struct loop_watch *delegator_watch;
 };
 
 void loop_free(struct loop *loop)
 {
-    loop_watch_free(loop->timer_watch);
     loop_watch_free(loop->delegator_watch);
 
     for (size_t i = 0; i < loop->deferred.len; i++)
@@ -61,13 +56,12 @@ void loop_free(struct loop *loop)
     free(loop->deferred.ptr);
 
     delegator_free(loop->delegator);
-    channel_free(loop->timer);
-    fdev_free(loop->fds);
+    close(loop->epfd);
 
     free(loop);
 }
 
-static void loop_handle_delegate(struct loop_watch *w, void *opaque, int fd, short event)
+static void loop_handle_delegate(struct loop_watch *w, void *opaque, int fd, u32 event)
 {
     (void)w;
     (void)fd;
@@ -77,42 +71,25 @@ static void loop_handle_delegate(struct loop_watch *w, void *opaque, int fd, sho
     delegator_run(loop->delegator);
 }
 
-static void loop_handle_timer(struct loop_watch *w, void *opaque, int fd, short event)
+struct loop *loop_new(void)
 {
-    (void)w;
-    (void)fd;
-    (void)event;
+    int epfd = epoll_create1(EPOLL_CLOEXEC);
+    BUG_ON(epfd == -1);
 
-    struct loop *loop = opaque;
-    channel_clear_fd(loop->timer);
-
-    struct loop_timer *t;
-    while ((t = channel_pop(loop->timer, struct loop_timer)))
-        t->cb(t, t->opaque);
-}
-
-struct loop *loop_new(const struct timer_api *api)
-{
     auto loop = xnew0(struct loop);
-    loop->fds = fdev_new();
-    loop->timer = channel_new(true);
+    loop->epfd = epfd;
     loop->delegator = delegator_new();
-    loop->timer_api = api;
-
     loop->running = true;
-
-    loop->timer_watch = loop_watch_new(loop, loop_handle_timer, loop);
     loop->delegator_watch = loop_watch_new(loop, loop_handle_delegate, loop);
 
-    loop_watch_set(loop->timer_watch, channel_fd(loop->timer), POLLIN);
-    loop_watch_set(loop->delegator_watch, delegator_fd(loop->delegator), POLLIN);
+    loop_watch_set(loop->delegator_watch, delegator_fd(loop->delegator), EPOLLIN);
 
     return loop;
 }
 
-static void loop_handle_fd(struct fdev_event *event)
+static void loop_handle_fd(struct epoll_event *event)
 {
-    struct loop_watch *w = event->data;
+    struct loop_watch *w = event->data.ptr;
     w->cb(w, w->opaque, w->fd, event->events);
 }
 
@@ -142,8 +119,8 @@ int loop_run(struct loop *loop)
         int timeout = loop->force_iteration ? 0 : -1;
         loop->force_iteration = false;
 
-        struct fdev_event events[10];
-        ssize_t num = fdev_wait(loop->fds, events, 10, timeout);
+        struct epoll_event events[10];
+        ssize_t num = epoll_wait(loop->epfd, events, 10, timeout);
         if (num < 0) {
             BUG_ON(num != -EINTR);
             continue;
@@ -176,35 +153,53 @@ void loop_delegate_sync(struct loop *loop, struct delegate *d)
     delegator_delegate_sync(loop->delegator, d);
 }
 
+static void loop_watch_init(struct loop_watch *w, struct loop *loop, loop_watch_cb cb,
+        void *opaque)
+{
+    w->loop = loop;
+    w->fd = -1;
+    w->cb = cb;
+    w->opaque = opaque;
+}
+
 struct loop_watch *loop_watch_new(struct loop *loop, loop_watch_cb cb, void *opaque)
 {
     auto watch = xnew0(struct loop_watch);
-    watch->loop = loop;
-    watch->fd = -1;
-    watch->cb = cb;
-    watch->opaque = opaque;
+    loop_watch_init(watch, loop, cb, opaque);
     return watch;
 }
 
-void loop_watch_set(struct loop_watch *w, int fd, short events)
+void loop_watch_set(struct loop_watch *w, int fd, u32 events)
 {
-    if (w->fd != fd && w->fd != -1)
-        fdev_remove(w->loop->fds, w->fd);
+    struct epoll_event e = { .data.ptr = w, .events = events };
+
+    int ret = 0;
+
+    if (w->fd != fd) {
+        loop_watch_disable(w);
+        if (fd != -1) {
+            ret = epoll_ctl(w->loop->epfd, EPOLL_CTL_ADD, fd, &e);
+        }
+    } else if (fd != -1) {
+        ret = epoll_ctl(w->loop->epfd, EPOLL_CTL_MOD, fd, &e);
+    }
+
     w->fd = fd;
-    if (fd != -1)
-        fdev_set(w->loop->fds, fd, w, events);
+
+    BUG_ON(ret == -1);
 }
 
 void loop_watch_disable(struct loop_watch *w)
 {
-    if (w->fd != -1)
-        fdev_disable(w->loop->fds, w->fd);
+    if (w->fd != -1) {
+        BUG_ON(epoll_ctl(w->loop->epfd, EPOLL_CTL_DEL, w->fd, NULL));
+        w->fd = -1;
+    }
 }
 
 void loop_watch_free(struct loop_watch *w)
 {
-    if (w->fd != -1)
-        fdev_remove(w->loop->fds, w->fd);
+    loop_watch_disable(w);
     free(w);
 }
 
@@ -230,19 +225,38 @@ void loop_defer_free(struct loop_defer *defer)
     defer->freed = true;
 }
 
-struct loop_timer *loop_timer_new(struct loop *loop, loop_timer_cb cb, void *opaque)
+static void loop_handle_timer(struct loop_watch *w, void *opaque, int fd, u32 event)
 {
+    (void)event;
+
+    auto timer = container_of(w, struct loop_timer, watch);
+
+    u64 exp;
+    BUG_ON(read(fd, &exp, sizeof(exp)) == -1);
+    for (size_t i = 0; i < exp; i++) {
+        timer->cb(timer, opaque);
+    }
+}
+
+struct loop_timer *loop_timer_new(struct loop *loop, loop_timer_cb cb, int clock,
+        void *opaque)
+{
+    int fd = timerfd_create(clock, TFD_NONBLOCK | TFD_CLOEXEC);
+    BUG_ON(fd == -1);
+
     auto t = xnew0(struct loop_timer);
-    t->loop = loop;
+
+    loop_watch_init(&t->watch, loop, loop_handle_timer, opaque);
     t->cb = cb;
-    t->opaque = opaque;
-    t->timer = loop->timer_api->new(loop->timer, t);
+
+    loop_watch_set(&t->watch, fd, EPOLLIN);
+
     return t;
 }
 
 void loop_timer_set(struct loop_timer *timer, const struct itimerspec *ts, bool abs)
 {
-    timer->loop->timer_api->set(timer->timer, abs ? TIMER_ABSTIME : 0, ts);
+    BUG_ON(timerfd_settime(timer->watch.fd, abs ? TFD_TIMER_ABSTIME : 0, ts, NULL));
 }
 
 void loop_timer_disable(struct loop_timer *timer)
@@ -253,7 +267,7 @@ void loop_timer_disable(struct loop_timer *timer)
 
 void loop_timer_free(struct loop_timer *timer)
 {
-    timer->loop->timer_api->free(timer->timer);
+    close(timer->watch.fd);
     free(timer);
 }
 

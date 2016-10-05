@@ -1,4 +1,4 @@
-#include <poll.h>
+#include <sys/epoll.h>
 #include <pulse/pulseaudio.h>
 
 #include "utils/utils.h"
@@ -33,26 +33,25 @@ struct pa_time_event {
     struct timeval tv;
 };
 
-static short pulse_mainloop_io_event_flags_to_poll_flags(pa_io_event_flags_t pa_flags)
+static u32 pulse_mainloop_io_event_flags_to_poll_flags(pa_io_event_flags_t pa_flags)
 {
-    short flags = 0;
-    if (pa_flags & PA_IO_EVENT_INPUT)  { flags |= POLLIN;  }
-    if (pa_flags & PA_IO_EVENT_OUTPUT) { flags |= POLLOUT; }
+    u32 flags = 0;
+    if (pa_flags & PA_IO_EVENT_INPUT)  { flags |= EPOLLIN;  }
+    if (pa_flags & PA_IO_EVENT_OUTPUT) { flags |= EPOLLOUT; }
     return flags;
 }
 
-static pa_io_event_flags_t pulse_poll_flags_to_pa_io_event_flags(short flags)
+static pa_io_event_flags_t pulse_poll_flags_to_pa_io_event_flags(u32 flags)
 {
     auto events = (pa_io_event_flags_t)PA_IO_EVENT_NULL;
-    if (flags & POLLIN)  { events |= PA_IO_EVENT_INPUT;  }
-    if (flags & POLLOUT) { events |= PA_IO_EVENT_OUTPUT; }
-    if (flags & POLLHUP) { events |= PA_IO_EVENT_HANGUP; }
-    if (flags & POLLERR) { events |= PA_IO_EVENT_ERROR;  }
+    if (flags & EPOLLIN)  { events |= PA_IO_EVENT_INPUT;  }
+    if (flags & EPOLLOUT) { events |= PA_IO_EVENT_OUTPUT; }
+    if (flags & EPOLLHUP) { events |= PA_IO_EVENT_HANGUP; }
+    if (flags & EPOLLERR) { events |= PA_IO_EVENT_ERROR;  }
     return events;
 }
 
-static void pulse_mainloop_watch_cb(struct loop_watch *w, void *opaque, int fd,
-        short flags)
+static void pulse_mainloop_watch_cb(struct loop_watch *w, void *opaque, int fd, u32 flags)
 {
     (void)w;
 
@@ -132,7 +131,8 @@ static pa_time_event *pulse_mainloop_time_new(pa_mainloop_api *a,
     timer->ctx = ctx;
     timer->cb = cb;
     timer->userdata = userdata;
-    timer->timer = loop_timer_new(ctx->loop, pulse_mainloop_timer_cb, timer);
+    timer->timer = loop_timer_new(ctx->loop, pulse_mainloop_timer_cb, CLOCK_REALTIME,
+            timer);
 
     pulse_mainloop_time_restart(timer, tv);
 

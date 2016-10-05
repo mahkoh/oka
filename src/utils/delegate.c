@@ -30,7 +30,7 @@ int delegator_fd(struct delegator *d)
 
 void delegator_run(struct delegator *d)
 {
-    utils_clear_pipe(channel_fd(d->c));
+    channel_clear_fd(d->c);
     struct delegate *dd;
     while ((dd = channel_pop(d->c, struct delegate)))
         dd->run(dd);

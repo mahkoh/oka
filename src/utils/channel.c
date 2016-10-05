@@ -13,8 +13,7 @@ struct channel {
     struct list head;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
-    int pipe_in;
-    int pipe_out;
+    int fd;
 };
 
 struct channel_entry {
@@ -22,40 +21,36 @@ struct channel_entry {
     void *data;
 };
 
-struct channel *channel_new(bool need_pipe)
+struct channel *channel_new(bool need_fd)
 {
     auto channel = xnew(struct channel);
     list_init(&channel->head);
     channel->mutex = THREAD_MUTEX_INIT;
     channel->cond = THREAD_COND_INIT;
-    if (need_pipe)
-        utils_init_pipe(&channel->pipe_out, &channel->pipe_in);
-    else
-        channel->pipe_out = channel->pipe_in = -1;
+    channel->fd = need_fd ? utils_eventfd() : -1;
     return channel;
 }
 
 void channel_free(struct channel *c)
 {
-    if (c->pipe_in != -1) {
-        close(c->pipe_in);
-        close(c->pipe_out);
+    if (c->fd != -1) {
+        close(c->fd);
     }
-    while (channel_pop(c, void))
-        ;
+    while (channel_pop(c, void)) {
+    }
     free(c);
 }
 
 int channel_fd(struct channel *c)
 {
-    BUG_ON(c->pipe_out == -1);
-    return c->pipe_out;
+    BUG_ON(c->fd == -1);
+    return c->fd;
 }
 
 void channel_clear_fd(struct channel *c)
 {
-    BUG_ON(c->pipe_out == -1);
-    utils_clear_pipe(c->pipe_out);
+    BUG_ON(c->fd == -1);
+    utils_clear_eventfd(c->fd);
 }
 
 static struct channel_entry *channel_entry_from_node(struct list *node)
@@ -69,7 +64,9 @@ void channel_push(struct channel *c, void *data)
     entry->data = data;
     auto_unlock lock = thread_mutex_lock(&c->mutex);
     list_append(&c->head, &entry->node);
-    utils_signal_pipe(c->pipe_in);
+    if (c->fd != -1) {
+        utils_signal_eventfd(c->fd);
+    }
     thread_cond_signal(&c->cond);
 }
 
@@ -77,8 +74,9 @@ void *channel_pop__(struct channel *c)
 {
     auto_unlock lock = thread_mutex_lock(&c->mutex);
     auto entry_node = list_pop_first(&c->head);
-    if (!entry_node)
+    if (!entry_node) {
         return NULL;
+    }
     auto_free auto entry = channel_entry_from_node(entry_node);
     return entry->data;
 }
@@ -86,8 +84,9 @@ void *channel_pop__(struct channel *c)
 void *channel_pop_wait__(struct channel *c)
 {
     auto_unlock lock = thread_mutex_lock(&c->mutex);
-    while (list_empty(&c->head))
+    while (list_empty(&c->head)) {
         thread_cond_wait(&c->cond, &c->mutex);
+    }
     auto entry_node = list_pop_first(&c->head);
     auto_free auto entry = channel_entry_from_node(entry_node);
     return entry->data;
