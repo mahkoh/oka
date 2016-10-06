@@ -54,7 +54,7 @@ static int id3_tag_to_metadata(const char tag_str[static 4])
 static void id3_fill_year(enum metadata_key key, const char *txt, 
         char *metadata[static METADATA_NUM_TAGS])
 {
-    auto date = xnew(metadata_date_format);
+    auto date = xnew_uninit(metadata_date_format);
     size_t i = 0;
     for (; i < sizeof(*date) - 1 && txt[i]; i++)
         (*date)[i] = txt[i];
@@ -67,7 +67,7 @@ static void id3_fill_year(enum metadata_key key, const char *txt,
 static void id3_fill_timestamp(enum metadata_key key, const char *txt, 
         char *metadata[static METADATA_NUM_TAGS])
 {
-    auto date = xnew(metadata_date_format);
+    auto date = xnew_uninit(metadata_date_format);
     size_t i = 0;
     for (; i < sizeof(*date) - 1 && txt[i]; i++) {
         if (*txt == '-') {

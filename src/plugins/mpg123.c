@@ -190,7 +190,7 @@ static struct decoder_stream *ip_open(struct decoder *d, const char *path,
     if (ip_fix_format(h, &format))
         return NULL;
 
-    auto s = xnew(struct ip_stream);
+    auto s = xnew_uninit(struct ip_stream);
     s->h = move(h);
     s->d.close = ip_close;
     s->d.seek = ip_seek;
@@ -228,7 +228,7 @@ static int plugin_init(const struct plugin_ops *ops, struct diag *diag)
 {
     ip_diag = diag;
 
-    auto decoder = xnew(struct decoder);
+    auto decoder = xnew_uninit(struct decoder);
     decoder->name = "mpg123";
     decoder->free = ip_free;
     decoder->open = ip_open;

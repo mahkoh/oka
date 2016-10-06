@@ -81,7 +81,7 @@ static void plugins_load_one(const char *name)
         return;
     }
 
-    auto plugin = xnew(struct plugin);
+    auto plugin = xnew_uninit(struct plugin);
     plugin->handle = handle;
     plugin->api = api;
 

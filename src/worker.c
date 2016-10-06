@@ -71,7 +71,7 @@ struct worker *worker_new(void)
 {
     auto_restore sigs = signals_block_all();
 
-    auto worker = xnew(struct worker);
+    auto worker = xnew_uninit(struct worker);
     worker->jobs = channel_new(false);
     worker->results = channel_new(true);
     worker->current = NULL;
@@ -134,7 +134,7 @@ void worker_cancel_job(struct worker *w, worker_cancel_job_cb cb, void *opaque)
 void worker_add_job(struct worker *w, u32 type, worker_job_cb job_cb,
         worker_free_cb free_cb, void *data)
 {
-    auto job = xnew(struct worker_job);
+    auto job = xnew_uninit(struct worker_job);
     job->type = type;
     job->job_cb = job_cb;
     job->free_cb = free_cb;

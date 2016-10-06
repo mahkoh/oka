@@ -23,7 +23,7 @@ struct channel_entry {
 
 struct channel *channel_new(bool need_fd)
 {
-    auto channel = xnew(struct channel);
+    auto channel = xnew_uninit(struct channel);
     list_init(&channel->head);
     channel->mutex = THREAD_MUTEX_INIT;
     channel->cond = THREAD_COND_INIT;
@@ -60,7 +60,7 @@ static struct channel_entry *channel_entry_from_node(struct list *node)
 
 void channel_push(struct channel *c, void *data)
 {
-    auto entry = xnew(struct channel_entry);
+    auto entry = xnew_uninit(struct channel_entry);
     entry->data = data;
     auto_unlock lock = thread_mutex_lock(&c->mutex);
     list_append(&c->head, &entry->node);

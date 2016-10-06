@@ -54,7 +54,7 @@ static void main_diag_err_delegate(struct delegate *d)
 
 static void main_diag_err(char *msg)
 {
-    auto m = xnew(struct main_diag_delegate);
+    auto m = xnew_uninit(struct main_diag_delegate);
     m->d.run = main_diag_err_delegate;
     m->msg = msg;
     main_delegate(&m->d);
@@ -70,7 +70,7 @@ noreturn static void main_diag_fatal_delegate(struct delegate *d)
 
 static void main_diag_fatal(char *msg)
 {
-    auto m = xnew(struct main_diag_delegate);
+    auto m = xnew_uninit(struct main_diag_delegate);
     m->d.run = main_diag_fatal_delegate;
     m->msg = msg;
     main_delegate(&m->d);
@@ -85,7 +85,7 @@ static void main_diag_info_delegate(struct delegate *d)
 
 static void main_diag_info(char *msg)
 {
-    auto m = xnew(struct main_diag_delegate);
+    auto m = xnew_uninit(struct main_diag_delegate);
     m->d.run = main_diag_info_delegate;
     m->msg = msg;
     main_delegate(&m->d);
@@ -281,7 +281,7 @@ static void main_volume_changed_delegate(struct delegate *d)
 
 void main_sink_info_changed(struct sink_info *i)
 {
-    auto v = xnew(struct main_sink_info_changed);
+    auto v = xnew_uninit(struct main_sink_info_changed);
     v->d.run = main_volume_changed_delegate;
     v->i = *i;
     main_delegate(&v->d);

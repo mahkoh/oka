@@ -427,7 +427,7 @@ static void player_seek_delegate(struct delegate *d)
 
 void player_seek(i64 diff)
 {
-    auto seek = xnew(struct player_seek);
+    auto seek = xnew_uninit(struct player_seek);
     seek->d.run = player_seek_delegate;
     seek->diff = diff;
     player_delegate(&seek->d);
@@ -446,7 +446,7 @@ static void player_set_sink_delegate(struct delegate *d)
 
 void player_set_sink(struct sink *sink)
 {
-    auto d = xnew(struct player_set_sink);
+    auto d = xnew_uninit(struct player_set_sink);
     d->d.run = player_set_sink_delegate;
     d->sink = sink;
     player_delegate(&d->d);
@@ -466,7 +466,7 @@ static void player_set_input_delegate(struct delegate *d)
 
 void player_set_input(struct decoder_stream *s, struct main_track_cookie *c)
 {
-    auto d = xnew(struct player_set_input);
+    auto d = xnew_uninit(struct player_set_input);
     d->d.run = player_set_input_delegate;
     d->s = s;
     d->c = c;

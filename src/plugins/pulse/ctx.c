@@ -247,7 +247,7 @@ void pulse_ctx_stream_state_changed(struct pulse_ctx *c, struct pulse_stream *s)
 {
     (void)c;
     if (s->state == PULSE_STREAM_DEAD) {
-        BUG("");
+        BUG("pulse stream died");
     }
 }
 
@@ -386,7 +386,7 @@ int pulse_ctx_free(struct pulse_ctx *cc)
 
 int pulse_ctx_add_sink(const struct plugin_ops *ops, struct diag *diag)
 {
-    auto c = xnew(struct pulse_ctx_priv);
+    auto c = xnew_uninit(struct pulse_ctx_priv);
 
     pulse_ctx_init(c, diag);
 

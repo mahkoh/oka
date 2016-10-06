@@ -14,14 +14,13 @@
 #include "utils/vec.h"
 
 UTILS_VECTOR(loop_defer, struct loop_defer *)
-UTILS_VECTOR(loop_watch, struct loop_watch *)
-UTILS_VECTOR(loop_timer, struct loop_timer *)
 
 struct loop_watch {
     struct loop *loop;
     int fd;
     loop_watch_cb cb;
     void *opaque;
+    struct loop_watch *next;
 };
 
 struct loop_defer {
@@ -43,8 +42,8 @@ struct loop {
     struct delegator *delegator;
     struct loop_defer_vector deferred;
 
-    struct loop_watch_vector freed_watches;
-    struct loop_timer_vector freed_timers;
+    struct loop_watch *freed_watches;
+    struct loop_watch *freed_timers;
 
     bool force_iteration;
     bool running;
@@ -53,14 +52,40 @@ struct loop {
     struct loop_watch *delegator_watch;
 };
 
+static void loop_collect_garbage(struct loop *loop)
+{
+    auto next = loop->freed_watches;
+    while (next) {
+        auto cur = next;
+        next = next->next;
+        free(cur);
+    }
+    loop->freed_watches = NULL;
+
+    next = loop->freed_timers;
+    while (next) {
+        auto cur = container_of(next, struct loop_timer, watch);
+        next = next->next;
+        free(cur);
+    }
+    loop->freed_timers = NULL;
+
+    for (size_t i = 0; i < loop->deferred.len; i++) {
+        auto d = loop->deferred.ptr[i];
+        if (d->freed) {
+            free(d);
+            loop_defer_vector_swap_remove(&loop->deferred, i);
+            i--;
+        }
+    }
+}
+
 void loop_free(struct loop *loop)
 {
     loop_watch_free(loop->delegator_watch);
 
     loop_collect_garbage(loop);
 
-    free(loop->freed_watches.ptr);
-    free(loop->freed_timers.ptr);
     free(loop->deferred.ptr);
 
     delegator_free(loop->delegator);
@@ -109,28 +134,6 @@ static void loop_run_deferred(struct loop *loop)
         auto d = loop->deferred.ptr[i];
         if (d->enabled)
             d->cb(d, d->opaque);
-    }
-}
-
-static void loop_collect_garbage(struct loop *loop)
-{
-    for (size_t i = 0; i < loop->freed_watches.len; i++) {
-        free(loop->freed_watches.ptr[i]);
-    }
-    loop->freed_watches.len = 0;
-
-    for (size_t i = 0; i < loop->freed_timers.len; i++) {
-        free(loop->freed_timers.ptr[i]);
-    }
-    loop->freed_timers.len = 0;
-
-    for (size_t i = 0; i < loop->deferred.len; i++) {
-        auto d = loop->deferred.ptr[i];
-        if (d->freed) {
-            free(d);
-            loop_defer_vector_swap_remove(&loop->deferred, i);
-            i--;
-        }
     }
 }
 
@@ -221,7 +224,8 @@ void loop_watch_disable(struct loop_watch *w)
 void loop_watch_free(struct loop_watch *w)
 {
     loop_watch_disable(w);
-    loop_watch_vector_push(&w->loop->freed_watches, w);
+    w->next = w->loop->freed_watches;
+    w->loop->freed_watches = w;
 }
 
 struct loop_defer *loop_defer_new(struct loop *loop, loop_defer_cb cb, void *opaque)
@@ -293,7 +297,8 @@ void loop_timer_free(struct loop_timer *timer)
 {
     close(timer->watch.fd);
     timer->watch.fd = -1;
-    loop_timer_vector_push(&timer->watch.loop->freed_timers, timer);
+    timer->watch.next = timer->watch.loop->freed_timers;
+    timer->watch.loop->freed_timers = &timer->watch;
 }
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

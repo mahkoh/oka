@@ -12,7 +12,7 @@ struct diag {
 
 struct diag *diag_new(const struct diag_api *api)
 {
-    auto d = xnew(struct diag);
+    auto d = xnew_uninit(struct diag);
     d->api = api;
     return d;
 }

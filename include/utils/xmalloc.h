@@ -3,7 +3,7 @@
 
 #include "utils/utils.h"
 
-#define xnew(type) __extension__ ((typeof(type) *)xmalloc__(sizeof(type)))
+#define xnew_uninit(type) __extension__ ((typeof(type) *)xmalloc__(sizeof(type)))
 #define xnew_array(type, len) __extension__ \
     ((typeof(type) *)xmalloc__(sizeof(type) * (len)))
 #define xnew0(type) __extension__ ({ \

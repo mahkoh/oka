@@ -18,7 +18,7 @@ struct delegate_sync {
 
 struct delegator *delegator_new(void)
 {
-    auto d = xnew(struct delegator);
+    auto d = xnew_uninit(struct delegator);
     d->c = channel_new(true);
     return d;
 }

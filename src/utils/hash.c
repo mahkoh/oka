@@ -22,7 +22,7 @@ enum hash_map_bucket_status {
 
 struct hash_map *hash_map_new(struct hash_map_ops *ops)
 {
-    auto map = xnew(struct hash_map);
+    auto map = xnew_uninit(struct hash_map);
     map->bucket = xnew_array(void *, 2);
     map->bucket[0] = NULL;
     map->bucket[1] = NULL;
