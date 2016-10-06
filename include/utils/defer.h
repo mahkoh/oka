@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_DEFER_H
-#define OKA_UTILS_DEFER_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -15,7 +14,5 @@ void defer_free(struct defer *);
 void deferred_enable(struct deferred *, bool);
 void deferred_reschedule(struct deferred *);
 void deferred_free(struct deferred *);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_METADATA_H
-#define OKA_UTILS_METADATA_H
+#pragma once
 
 enum metadata_key {
     METADATA_ARTIST,
@@ -40,7 +39,4 @@ struct metadata {
     struct metadata_pair pairs[];
 };
 
-#endif
-
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1
-

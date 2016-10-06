@@ -21,7 +21,7 @@ struct player_input {
     struct list node;
     struct decoder_stream *stream;
     bool eof;
-    i64 remaining_ms;
+    i64 remaining_ms; // until this track has been fully played
     struct main_track_cookie *cookie;
     u64 pos_samples;
 };
@@ -70,7 +70,7 @@ static void player_timing_update(bool seeked)
         player_pos_sec = 0;
     }
 
-    if (player_paused || !input || !player_sink) {
+    if ((player_paused && !seeked) || !input || !player_sink) {
         loop_timer_disable(player_pos_timer);
         main_position_changed(player_pos_sec);
         return;
@@ -99,9 +99,11 @@ static void player_timing_update(bool seeked)
     }
 
     auto rem_msec = 1000 - (player_pos_msec % 1000);
-    if (rem_msec == 1000)
+    auto rem_sec = player_pos_sec - new_sec;
+    if (rem_msec == 1000) {
         rem_msec = 0;
-    auto rem_sec = player_pos_sec - new_sec + (rem_msec == 0 ? 1 : 0);
+        rem_sec += 1;
+    }
 
     struct itimerspec timer = {
         .it_interval = {
@@ -188,8 +190,9 @@ static void player_track_change_tick(struct loop_timer *t, void *opaque)
     auto diff = player_track_change_update_time - old;
 
     struct player_input *input;
-    list_for_each_entry(input, &player_inputs, node)
+    list_for_each_entry(input, &player_inputs, node) {
         input->remaining_ms -= diff;
+    }
 
     struct list *node, *n;
     list_for_each_safe(node, n, &player_inputs) {
@@ -338,9 +341,10 @@ void player_init(void)
     player_loop = loop_new();
     player_provide_input_defer = loop_defer_new(player_loop, player_provide_input, NULL);
     loop_defer_set(player_provide_input_defer, false);
-    player_pos_timer = loop_timer_new(player_loop, player_pos_tick, CLOCK_REALTIME, NULL);
+    player_pos_timer = loop_timer_new(player_loop, player_pos_tick, CLOCK_MONOTONIC,
+            NULL);
     player_track_change_timer = loop_timer_new(player_loop, player_track_change_tick,
-            CLOCK_REALTIME, NULL);
+            CLOCK_MONOTONIC, NULL);
     list_init(&player_inputs);
     auto_restore sigs = signals_block_all();
     thread_create(&player_thread, NULL, player_run, NULL);
@@ -362,6 +366,9 @@ void player_exit(void)
     static struct delegate d = { player_exit_delegate };
     player_delegate(&d);
     thread_join(player_thread, NULL);
+    loop_defer_free(player_provide_input_defer);
+    loop_timer_free(player_pos_timer);
+    loop_timer_free(player_track_change_timer);
     loop_free(player_loop);
 }
 
@@ -407,7 +414,27 @@ static void player_seek_delegate(struct delegate *d)
     u32 latency = 0;
     if (player_sink) {
         latency = player_sink->latency(player_sink);
-        player_sink->flush(player_sink, &first->stream->fmt);
+    }
+
+    bool eof;
+    first->stream->seek(first->stream, seek->diff - (i64)latency, &first->pos_samples,
+            &eof);
+
+    if (eof) {
+        player_input_free(first);
+        first = player_first_input();
+        if (first) {
+            first->stream->seek_abs(first->stream, 0, &first->pos_samples);
+        }
+    }
+
+    if (player_sink) {
+        player_sink->flush(player_sink, first ? &first->stream->fmt : NULL);
+    }
+
+    if (!first) {
+        player_goto_next_(true);
+        return;
     }
 
     list_remove(&first->node);
@@ -421,7 +448,6 @@ static void player_seek_delegate(struct delegate *d)
     first->eof = false;
     player_pause_track_change_timer();
 
-    first->stream->seek(first->stream, seek->diff - (i64)latency, &first->pos_samples);
     player_timing_update(true);
 }
 
@@ -527,9 +553,17 @@ static int player_sink_info_changed(struct sink *sink, struct sink_info *i)
     return 0;
 }
 
+static int player_sink_failed(struct sink *sink, bool retry)
+{
+    (void)sink;
+
+    BUG("pulse_sink_failed(..., %d)", (int)retry);
+}
+
 static struct sink_ops player_sink_ops = {
     .request_input = player_sink_request_input,
     .info_changed = player_sink_info_changed,
+    .failed = player_sink_failed,
 };
 
 void player_get_sink_ops(const struct sink_ops **ops, struct loop **loop)

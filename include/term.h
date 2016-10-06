@@ -1,5 +1,4 @@
-#ifndef OKA_TERM_H
-#define OKA_TERM_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -78,7 +77,5 @@ int term_set_foreground_color(int color);
 int term_reset_foreground_color(void);
 int term_set_background_color(int color);
 int term_reset_background_color(void);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

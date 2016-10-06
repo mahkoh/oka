@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_CHANNEL_H
-#define OKA_UTILS_CHANNEL_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -18,7 +17,5 @@ void channel_clear_fd(struct channel *c);
 
 #define channel_pop(c, type) (type *)channel_pop__(c)
 #define channel_pop_wait(c, type) (type *)channel_pop_wait__(c)
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

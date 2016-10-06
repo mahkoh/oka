@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_SIGNALS_H
-#define OKA_UTILS_SIGNALS_H
+#pragma once
 
 #include <signal.h>
 
@@ -9,7 +8,5 @@
 
 sigset_t signals_block_all(void);
 void signals_restore(sigset_t *set);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

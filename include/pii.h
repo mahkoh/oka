@@ -1,5 +1,4 @@
-#ifndef OKA_PII_H
-#define OKA_PII_H
+#pragma once
 
 #include "utils/loop.h"
 #include "sink.h"
@@ -20,7 +19,5 @@ struct pii {
     int (*add_decoder)(const char *name, const struct pii_decoder_api *api, void *opaque,
             struct pii_decoder **decoder, struct loop **loop);
 };
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

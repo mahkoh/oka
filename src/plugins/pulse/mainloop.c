@@ -1,5 +1,6 @@
 #include <sys/epoll.h>
 #include <pulse/pulseaudio.h>
+#include <stdio.h>
 
 #include "utils/utils.h"
 #include "utils/xmalloc.h"

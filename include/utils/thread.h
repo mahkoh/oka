@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_THREAD_H
-#define OKA_UTILS_THREAD_H
+#pragma once
 
 #include <pthread.h>
 #include <stdbool.h>
@@ -37,7 +36,5 @@ void thread_sigmask(int how, const sigset_t *set, sigset_t *oldset);
 
 void thread_sync_wait(struct thread_sync *s);
 void thread_sync_signal(struct thread_sync *s);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

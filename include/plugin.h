@@ -1,5 +1,4 @@
-#ifndef OKA_PLUGIN_H
-#define OKA_PLUGIN_H
+#pragma once
 
 #include <stdbool.h>
 #include <time.h>
@@ -26,7 +25,5 @@ struct plugin_api {
 };
 
 extern const struct plugin_api plugin_api;
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

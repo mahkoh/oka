@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_AUDIO_H
-#define OKA_UTILS_AUDIO_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -76,7 +75,5 @@ bool audio_format_included(const struct audio_format_range *range,
 
 size_t audio_bytes_per_sample(audio_sample_fmt_type);
 bool audio_formats_eq(const struct audio_format *l, const struct audio_format *r);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

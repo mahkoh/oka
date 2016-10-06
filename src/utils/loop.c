@@ -39,6 +39,8 @@ struct loop_timer {
 struct loop {
     int epfd;
 
+    size_t objs;
+
     struct delegator *delegator;
     struct loop_defer_vector deferred;
 
@@ -59,6 +61,7 @@ static void loop_collect_garbage(struct loop *loop)
         auto cur = next;
         next = next->next;
         free(cur);
+        loop->objs--;
     }
     loop->freed_watches = NULL;
 
@@ -67,6 +70,7 @@ static void loop_collect_garbage(struct loop *loop)
         auto cur = container_of(next, struct loop_timer, watch);
         next = next->next;
         free(cur);
+        loop->objs--;
     }
     loop->freed_timers = NULL;
 
@@ -74,6 +78,7 @@ static void loop_collect_garbage(struct loop *loop)
         auto d = loop->deferred.ptr[i];
         if (d->freed) {
             free(d);
+            loop->objs--;
             loop_defer_vector_swap_remove(&loop->deferred, i);
             i--;
         }
@@ -89,7 +94,10 @@ void loop_free(struct loop *loop)
     free(loop->deferred.ptr);
 
     delegator_free(loop->delegator);
+
     close(loop->epfd);
+
+    BUG_ON(loop->objs > 0);
 
     free(loop);
 }
@@ -132,8 +140,9 @@ static void loop_run_deferred(struct loop *loop)
 {
     for (size_t i = 0; i < loop->deferred.len; i++) {
         auto d = loop->deferred.ptr[i];
-        if (d->enabled)
+        if (d->enabled) {
             d->cb(d, d->opaque);
+        }
     }
 }
 
@@ -148,8 +157,8 @@ int loop_run(struct loop *loop)
 
         struct epoll_event events[10];
         ssize_t num = epoll_wait(loop->epfd, events, N_ELEMENTS(events), timeout);
-        if (num < 0) {
-            BUG_ON(num != -EINTR);
+        if (num == -1) {
+            BUG_ON(errno != EINTR);
             continue;
         }
         for (size_t i = 0; i < (size_t)num; i++) {
@@ -194,6 +203,7 @@ struct loop_watch *loop_watch_new(struct loop *loop, loop_watch_cb cb, void *opa
 {
     auto watch = xnew0(struct loop_watch);
     loop_watch_init(watch, loop, cb, opaque);
+    loop->objs++;
     return watch;
 }
 
@@ -236,6 +246,7 @@ struct loop_defer *loop_defer_new(struct loop *loop, loop_defer_cb cb, void *opa
     d->opaque = opaque;
     d->enabled = true;
     loop_defer_vector_push(&loop->deferred, d);
+    loop->objs++;
     return d;
 }
 
@@ -259,9 +270,10 @@ static void loop_timer_handle(struct loop_watch *w, void *opaque, int fd, u32 ev
     u64 exp;
     if (read(fd, &exp, sizeof(exp)) == -1) {
         BUG_ON(errno != EAGAIN);
+        return;
     }
 
-    for (size_t i = 0; i < exp; i++) {
+    for (u64 i = 0; i < exp; i++) {
         timer->cb(timer, opaque);
     }
 }
@@ -279,6 +291,7 @@ struct loop_timer *loop_timer_new(struct loop *loop, loop_timer_cb cb, int clock
 
     loop_watch_set(&t->watch, fd, EPOLLIN);
 
+    loop->objs++;
     return t;
 }
 

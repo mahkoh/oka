@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_HASH_H
-#define OKA_UTILS_HASH_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -22,7 +21,5 @@ void hash_map_set(struct hash_map *map, void *val);
 
 u32 hash_str(const char *s);
 u32 hash_mem(void *mem_, size_t len);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

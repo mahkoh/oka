@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_VEC_H
-#define OKA_UTILS_VEC_H
+#pragma once
 
 #include <stdlib.h>
 
@@ -34,4 +33,4 @@
         v->len--; \
     } \
 
-#endif
+// vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

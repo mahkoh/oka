@@ -1,5 +1,4 @@
-#ifndef OKA_WORKER_H
-#define OKA_WORKER_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -19,7 +18,5 @@ bool worker_cancel_current(const struct worker *w);
 int worker_fd(const struct worker *w);
 void worker_push_result(struct worker *w, void *data);
 void *worker_pop_result(struct worker *w);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

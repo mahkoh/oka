@@ -1,5 +1,4 @@
-#ifndef OKA_PLAYER_H
-#define OKA_PLAYER_H
+#pragma once
 
 #include <time.h>
 #include <stdbool.h>
@@ -20,7 +19,5 @@ void player_toggle_mute(void);
 void player_seek(i64 diff);
 void player_goto_next(void);
 void player_stop(void);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

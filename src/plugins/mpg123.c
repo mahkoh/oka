@@ -60,11 +60,20 @@ static int ip_read(struct decoder_stream *d, u8 *buf, size_t *len, u64 *pos)
     return 0;
 }
 
-static int ip_seek(struct decoder_stream *d, i64 diff, u64 *pos)
+static int ip_seek(struct decoder_stream *d, i64 diff, u64 *pos, bool *eof)
 {
     auto s = ip_to_stream(d);
 
     *pos = (u64)mpg123_seek(s->h, (diff * 44100) / 1000, SEEK_CUR);
+    *eof = mpg123_read(s->h, NULL, 0, NULL) == MPG123_DONE;
+    return 0;
+}
+
+static int ip_seek_abs(struct decoder_stream *d, u64 pos, u64 *opos)
+{
+    auto s = ip_to_stream(d);
+
+    *opos = (u64)mpg123_seek(s->h, (pos * 44100) / 1000, SEEK_SET);
     return 0;
 }
 
@@ -194,6 +203,7 @@ static struct decoder_stream *ip_open(struct decoder *d, const char *path,
     s->h = move(h);
     s->d.close = ip_close;
     s->d.seek = ip_seek;
+    s->d.seek_abs = ip_seek_abs;
     s->d.read = ip_read;
     s->d.fmt = format;
 

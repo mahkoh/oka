@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_DIAG_H
-#define OKA_UTILS_DIAG_H
+#pragma once
 
 #include <stdnoreturn.h>
 
@@ -17,7 +16,5 @@ __attribute__((format(printf, 2, 3))) void diag_err(struct diag *, const char *f
 __attribute__((format(printf, 2, 3))) void diag_info(struct diag *, const char *fmt, ...);
 noreturn __attribute__((format(printf, 2, 3))) void diag_fatal(struct diag *,
         const char *fmt, ...);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

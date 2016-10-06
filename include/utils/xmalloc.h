@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_XMALLOC_H
-#define OKA_UTILS_XMALLOC_H
+#pragma once
 
 #include "utils/utils.h"
 
@@ -19,7 +18,5 @@ void *xmalloc__(size_t size);
 void *xrealloc__(void *ptr, size_t size);
 char *xstrdup(const char *s);
 char *xstrjoin__(struct slice slice);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_UTILS_H
-#define OKA_UTILS_UTILS_H
+#pragma once
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -122,7 +121,5 @@ u64 utils_get_mono_time_ms(void);
 int utils_eventfd(void);
 void utils_signal_eventfd(int fd);
 void utils_clear_eventfd(int fd);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

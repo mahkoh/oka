@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_DELEGATE_H
-#define OKA_UTILS_DELEGATE_H
+#pragma once
 
 struct delegate {
     void (*run)(struct delegate *);
@@ -13,7 +12,5 @@ void delegator_run(struct delegator *);
 void delegator_free(struct delegator *);
 void delegator_delegate(struct delegator *, struct delegate *);
 void delegator_delegate_sync(struct delegator *, struct delegate *);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

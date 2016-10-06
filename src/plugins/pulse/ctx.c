@@ -125,10 +125,11 @@ static void pulse_ctx_on_failed(struct pulse_ctx_priv *c)
     pa_context_unref(c->pub.ctx);
 
     auto retry = c->state == PULSE_CTX_READY;
+    auto ops = c->ops;
 
     pulse_ctx_init(c, c->pub.diag);
 
-    c->ops->failed(&c->sink, retry);
+    ops->failed(&c->sink, retry);
 }
 
 static void pulse_ctx_on_state_change(pa_context *pa_ctx, void *userdata)

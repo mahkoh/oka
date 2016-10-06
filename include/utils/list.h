@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_LIST_H
-#define OKA_UTILS_LIST_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -25,7 +24,5 @@ size_t list_len(struct list *head);
         if (node != (head)) entry = container_of(node, typeof(*entry), member); \
         node != (head); \
         });)
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1

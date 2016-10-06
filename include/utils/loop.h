@@ -1,5 +1,4 @@
-#ifndef OKA_UTILS_LOOP_H
-#define OKA_UTILS_LOOP_H
+#pragma once
 
 #include <time.h>
 #include <stdbool.h>
@@ -17,7 +16,6 @@ typedef void (*loop_defer_cb)(struct loop_defer *, void *);
 typedef void (*loop_timer_cb)(struct loop_timer *, void *);
 
 struct loop *loop_new(void);
-int loop_run(struct loop *loop);
 void loop_free(struct loop *loop);
 
 void loop_delegate(struct loop *loop, struct delegate *d);
@@ -25,6 +23,7 @@ void loop_delegate_sync(struct loop *loop, struct delegate *d);
 
 // NOTE: None of the following functions are thread-safe.
 
+int loop_run(struct loop *loop);
 void loop_stop(struct loop *loop, int ret);
 void loop_force_iteration(struct loop *loop);
 
@@ -42,7 +41,5 @@ struct loop_timer *loop_timer_new(struct loop *loop, loop_timer_cb cb, int clock
 void loop_timer_set(struct loop_timer *timer, const struct itimerspec *ts, bool abs);
 void loop_timer_disable(struct loop_timer *timer);
 void loop_timer_free(struct loop_timer *timer);
-
-#endif
 
 // vim: et:sw=4:tw=90:ts=4:sts=4:cc=+1
